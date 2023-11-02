@@ -1,16 +1,15 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
+const helmet = require('helmet');
 const { errors } = require('celebrate');
 const cors = require('cors');
-const { createUser, login } = require('./controllers/users');
-const auth = require('./middlewares/auth');
+const rateLimiter = require('./middlewares/rateLimiter');
+const router = require('./routes/index');
 const { requestLogger, errorLogger } = require('./middlewares/logger');
 const centralizedErrorHandler = require('./middlewares/сentralizedErrorHandler');
-const { signupValidation, signinValidation } = require('./middlewares/validation');
 
 const { PORT = 3005, DB_URL = 'mongodb://127.0.0.1:27017/bitfilmsdb' } = process.env;
-const { NotFoundError } = require('./errors/errors');
 
 const app = express();
 
@@ -27,22 +26,16 @@ mongoose.connect(DB_URL, {
 
 app.use(requestLogger);
 
-app.post('/signup', signupValidation, createUser);
+app.use(helmet());
 
-app.post('/signin', signinValidation, login);
+app.use(rateLimiter);
 
-/** авторизация */
-app.use(auth);
-app.use('/users', require('./routes/users'));
-app.use('/movies', require('./routes/movies'));
+app.use(router);
 
 app.use(errorLogger);
 
 /** обработчики ошибок */
 app.use(errors());
-app.use('*', (req, res, next) => {
-  next(new NotFoundError('Страница не найдена'));
-});
 app.use(centralizedErrorHandler);
 
 /** подключаем мидлвары, роуты и всё остальное */
